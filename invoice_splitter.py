@@ -12,11 +12,13 @@ import io
 import json
 import sys
 import pandas as pd
-import tkinter as tk
-from tkinter import filedialog, messagebox
 from pathlib import Path
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+# tkinter is only available on desktop (not on Streamlit Cloud / headless Linux).
+# It is imported lazily inside the App class so that importing this module in
+# app.py does not crash on servers where Tk is not installed.
 
 HSN_FILE = Path(__file__).parent / "hsn_codes.json"
 
@@ -263,55 +265,68 @@ def process_excel(input_path: str, output_path: str) -> dict:
 
 # ── Desktop GUI ───────────────────────────────────────────────────────────────
 
-class App(tk.Tk):
+class App:
+    """Desktop GUI — only instantiated when running invoice_splitter.py directly."""
+
     def __init__(self):
-        super().__init__()
-        self.title("Invoice Splitter — Tally Sales Export")
-        self.resizable(False, False)
-        self.configure(bg="#f0f4f8")
+        # Lazy import: tkinter is not available on Streamlit Cloud / headless Linux
+        import tkinter as tk
+        from tkinter import filedialog, messagebox
+        self._tk          = tk
+        self._filedialog  = filedialog
+        self._messagebox  = messagebox
+
+        self.root = tk.Tk()
+        self.root.title("Invoice Splitter — Tally Sales Export")
+        self.root.resizable(False, False)
+        self.root.configure(bg="#f0f4f8")
         self._build_ui()
 
-    def _build_ui(self):
-        p = {'padx': 14, 'pady': 7}
+    def mainloop(self):
+        self.root.mainloop()
 
-        tk.Label(self, text="Invoice Splitter",
+    def _build_ui(self):
+        tk = self._tk
+        r  = self.root
+        p  = {'padx': 14, 'pady': 7}
+
+        tk.Label(r, text="Invoice Splitter",
                  font=("Segoe UI", 15, "bold"), bg="#f0f4f8", fg="#1a202c"
                  ).grid(row=0, column=0, columnspan=3, pady=(20, 2))
-        tk.Label(self,
-                 text="Splits multi-product Tally invoice rows into individual product rows",
+        tk.Label(r, text="Splits multi-product Tally invoice rows into individual product rows",
                  font=("Segoe UI", 9), fg="#718096", bg="#f0f4f8"
                  ).grid(row=1, column=0, columnspan=3, pady=(0, 16))
 
-        tk.Label(self, text="Input File:", bg="#f0f4f8", anchor='w'
+        tk.Label(r, text="Input File:", bg="#f0f4f8", anchor='w'
                  ).grid(row=2, column=0, sticky='w', **p)
         self.input_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.input_var, width=50, state='readonly'
+        tk.Entry(r, textvariable=self.input_var, width=50, state='readonly'
                  ).grid(row=2, column=1, **p)
-        tk.Button(self, text="Browse…", command=self._pick_input
+        tk.Button(r, text="Browse…", command=self._pick_input
                   ).grid(row=2, column=2, **p)
 
-        tk.Label(self, text="Output File:", bg="#f0f4f8", anchor='w'
+        tk.Label(r, text="Output File:", bg="#f0f4f8", anchor='w'
                  ).grid(row=3, column=0, sticky='w', **p)
         self.output_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.output_var, width=50, state='readonly'
+        tk.Entry(r, textvariable=self.output_var, width=50, state='readonly'
                  ).grid(row=3, column=1, **p)
-        tk.Button(self, text="Browse…", command=self._pick_output
+        tk.Button(r, text="Browse…", command=self._pick_output
                   ).grid(row=3, column=2, **p)
 
-        tk.Button(self, text="  Process File  ", command=self._run,
+        tk.Button(r, text="  Process File  ", command=self._run,
                   bg="#3182ce", fg="white", font=("Segoe UI", 11, "bold"),
                   padx=28, pady=9, relief='flat', cursor='hand2'
                   ).grid(row=4, column=0, columnspan=3, pady=16)
 
-        tk.Label(self, text="Log:", bg="#f0f4f8", anchor='w'
+        tk.Label(r, text="Log:", bg="#f0f4f8", anchor='w'
                  ).grid(row=5, column=0, sticky='w', padx=14)
-        self.log_box = tk.Text(self, height=12, width=72, state='disabled',
+        self.log_box = tk.Text(r, height=12, width=72, state='disabled',
                                font=("Consolas", 9), bg="#1a202c", fg="#e2e8f0",
                                insertbackground='white', relief='flat')
         self.log_box.grid(row=6, column=0, columnspan=3, padx=14, pady=(2, 18))
 
     def _pick_input(self):
-        path = filedialog.askopenfilename(
+        path = self._filedialog.askopenfilename(
             title="Select Input Excel",
             filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")])
         if path:
@@ -320,7 +335,7 @@ class App(tk.Tk):
             self.output_var.set(str(p.parent / (p.stem + "_split" + p.suffix)))
 
     def _pick_output(self):
-        path = filedialog.asksaveasfilename(
+        path = self._filedialog.asksaveasfilename(
             title="Save Output As", defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")])
         if path:
@@ -331,16 +346,16 @@ class App(tk.Tk):
         self.log_box.insert('end', msg + '\n')
         self.log_box.see('end')
         self.log_box.configure(state='disabled')
-        self.update_idletasks()
+        self.root.update_idletasks()
 
     def _run(self):
         inp = self.input_var.get().strip()
         out = self.output_var.get().strip()
         if not inp:
-            messagebox.showwarning("Missing Input", "Please select an input Excel file.")
+            self._messagebox.showwarning("Missing Input", "Please select an input Excel file.")
             return
         if not out:
-            messagebox.showwarning("Missing Output", "Please choose an output file path.")
+            self._messagebox.showwarning("Missing Output", "Please choose an output file path.")
             return
 
         self._log(f"Input  : {inp}")
@@ -357,15 +372,15 @@ class App(tk.Tk):
                 for e in s['errors']:
                     self._log(f"  ! {e}")
             self._log(f"\nDone! Saved to: {out}")
-            self._log("─" * 60)
-            messagebox.showinfo("Complete",
-                                f"Processing complete!\n\n"
-                                f"Input rows:   {s['input_rows']}\n"
-                                f"Output rows:  {s['output_rows']}\n\n"
-                                f"Saved to:\n{out}")
+            self._log("-" * 60)
+            self._messagebox.showinfo("Complete",
+                                      f"Processing complete!\n\n"
+                                      f"Input rows:   {s['input_rows']}\n"
+                                      f"Output rows:  {s['output_rows']}\n\n"
+                                      f"Saved to:\n{out}")
         except Exception as exc:
             self._log(f"ERROR: {exc}")
-            messagebox.showerror("Error", str(exc))
+            self._messagebox.showerror("Error", str(exc))
             raise
 
 
