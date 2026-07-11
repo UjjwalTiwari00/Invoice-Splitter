@@ -60,17 +60,18 @@ def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df[named] if named else df
 
 
-def styled_df(df: pd.DataFrame):
-    """Highlight rows where _is_split == True in light green."""
-    df = df.reset_index(drop=True)
-    display = df.drop(columns=['_is_split'], errors='ignore')
-    if '_is_split' not in df.columns:
-        return display.style
-    flags = df['_is_split'].values
-    def highlight(row):
-        color = 'background-color: #d4edda' if flags[row.name] else ''
-        return [color] * len(row)
-    return display.style.apply(highlight, axis=1)
+def display_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare DataFrame for display.
+    Converts _is_split into a human-readable 'Status' column and drops the flag.
+    Avoids pandas Styler entirely (Styler + PyArrow serialisation segfaults on
+    Streamlit Cloud with pandas >= 3.x).
+    """
+    df = df.reset_index(drop=True).copy()
+    if '_is_split' in df.columns:
+        df.insert(0, 'Status', df['_is_split'].map({True: '🟢 New', False: ''}))
+        df = df.drop(columns=['_is_split'])
+    return df
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -145,7 +146,7 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                 f" · {multi_count} row(s) will be split",
                 expanded=False,
             ):
-                st.dataframe(raw_df, use_container_width=True, height=240)
+                st.dataframe(raw_df, width='stretch', height=240)
 
             st.divider()
 
@@ -219,13 +220,11 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                 except Exception as e:
                     st.error(f"Excel generation failed: {e}")
 
-                # Output table with row highlighting
+                # Output table
                 st.divider()
                 st.markdown(
                     "**Output data** — "
-                    "<span style='background:#d4edda;padding:2px 8px;border-radius:4px;"
-                    "font-size:0.85rem'>■ green rows</span> = split (new rows)",
-                    unsafe_allow_html=True,
+                    "**🟢 New** = row created by splitting"
                 )
 
                 gst_cols = [c for c in [
@@ -236,7 +235,7 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                 tab_full, tab_key = st.tabs(["Full table", "Key columns"])
 
                 with tab_full:
-                    st.dataframe(styled_df(out_df), use_container_width=True, height=450)
+                    st.dataframe(display_df(out_df), width='stretch', height=450)
 
                 with tab_key:
                     key_cols = (
@@ -246,7 +245,7 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                     )
                     key_cols = [c for c in key_cols if c in out_df.columns]
                     key_with_flag = key_cols + (['_is_split'] if '_is_split' in out_df.columns else [])
-                    st.dataframe(styled_df(out_df[key_with_flag]), use_container_width=True, height=450)
+                    st.dataframe(display_df(out_df[key_with_flag]), width='stretch', height=450)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -270,7 +269,7 @@ with tab_hsn:
     edited_df = st.data_editor(
         hsn_df,
         num_rows="dynamic",
-        use_container_width=True,
+        width='stretch',
         height=500,
         column_config={
             "Product Name": st.column_config.TextColumn(
