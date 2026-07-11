@@ -146,7 +146,7 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                 f" · {multi_count} row(s) will be split",
                 expanded=False,
             ):
-                st.dataframe(raw_df, width='stretch', height=240)
+                st.dataframe(raw_df, use_container_width=True, height=240)
 
             st.divider()
 
@@ -235,7 +235,7 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                 tab_full, tab_key = st.tabs(["Full table", "Key columns"])
 
                 with tab_full:
-                    st.dataframe(display_df(out_df), width='stretch', height=450)
+                    st.dataframe(display_df(out_df), use_container_width=True, height=450)
 
                 with tab_key:
                     key_cols = (
@@ -245,7 +245,7 @@ Product x Qty @ Rate (Tax GST%: GSTAmt)
                     )
                     key_cols = [c for c in key_cols if c in out_df.columns]
                     key_with_flag = key_cols + (['_is_split'] if '_is_split' in out_df.columns else [])
-                    st.dataframe(display_df(out_df[key_with_flag]), width='stretch', height=450)
+                    st.dataframe(display_df(out_df[key_with_flag]), use_container_width=True, height=450)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -269,7 +269,7 @@ with tab_hsn:
     edited_df = st.data_editor(
         hsn_df,
         num_rows="dynamic",
-        width='stretch',
+        use_container_width=True,
         height=500,
         column_config={
             "Product Name": st.column_config.TextColumn(
